@@ -2,6 +2,7 @@
 
 from clize import run, clize
 import boto.opsworks.layer1 as opsworks
+from datetime import datetime
 import time
 import textwrap
 
@@ -46,10 +47,10 @@ def print_all_ip():
 			print textwrap.fill(stack['Name'],30), "|",  textwrap.fill(instance['Hostname'],20), get_ip(instance)
 
 def wait_deployment_finished(deploymentId):
-	start_time = time.time()
+	start_time = datetime.now()
 	timeout = 7200
 	while True:
-		print "Deploying.", (time.time()-start_time), "s has passed."
+		print "Deploying.", (datetime.now() - start_time).seconds, "s has passed."
 		time.sleep(30)
 		deployments = conn.describe_deployments(None, None, [deploymentId])['Deployments']
 		not_running = 0
@@ -58,9 +59,12 @@ def wait_deployment_finished(deploymentId):
 				not_running += 1
 		if not_running == len(deployments):
 			break
-		if time.time() - start_time > timeout:
+		if (datetime.now() - start_time).seconds > timeout:
 			raise Exception('deployment timeout.')
-#
+	for deployment in deployments:
+		if deployment['Status'] != 'successful':
+			raise Exception('Not all deployment completed successfully!')
+#	
 @clize
 def list_all_ip():
 	print_all_ip()
@@ -128,7 +132,24 @@ def deploy(apps, stack_name, layer):
 	deploymentId = conn.create_deployment(stack['StackId'], command, apps, ids)['DeploymentId']
 	wait_deployment_finished(deploymentId)
 
-	
 #
+@clize
+def list_stack():
+	stacks = conn.describe_stacks()['Stacks']
+	for stack in stacks:
+		print str(stack.get('Name'))
+	
+
+#
+@clize
+def list_layer(stack_name):
+	stack = get_stack(conn, stack_name)
+	layers = conn.describe_layers(stack['StackId'])['Layers']
+	for layer in layers:
+		print str(layer.get('Name'))
+
+
+
 if __name__ == '__main__':
-	run([list_ip, list_all_ip, ip, deploy, update_custom_cookbooks, setup, deploy])
+	run([list_ip, list_all_ip, ip, deploy, update_custom_cookbooks, setup, deploy,
+		list_stack, list_layer])

@@ -6,4 +6,5 @@ This is tools to make easier managing aws opsworks. I used this in jenkins
 
 How to uses:
 ============
-python setup.py install
+`pip install -r requirement.txt`
+`python setup.py install`
