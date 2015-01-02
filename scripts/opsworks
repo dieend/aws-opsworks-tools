@@ -1,0 +1,134 @@
+#!/usr/bin/env python
+
+from clize import run, clize
+import boto.opsworks.layer1 as opsworks
+import time
+import textwrap
+
+conn = opsworks.OpsWorksConnection()
+#
+def get_stack(conn, stack_name):
+	stacks = conn.describe_stacks()['Stacks']
+	for stack in stacks:
+		if stack.get('Name') == stack_name:
+			return stack
+
+def get_layer(conn, stack_name, layer_name):
+	stack = get_stack(conn, stack_name)
+	layers = conn.describe_layers(stack['StackId'])['Layers']
+	for layer in layers:
+		if layer.get('Name') == layer_name or layer.get('Shortname') == layer_name:
+			return layer
+
+def get_instances(conn, stack_name, layer_name=None):
+	if layer_name is not None:
+		layer = get_layer(conn, stack_name, layer_name)
+		instances = conn.describe_instances(None, layer['LayerId'])['Instances']
+	else:
+		stack = get_stack(conn, stack_name)
+		instances = conn.describe_instances(stack['StackId'])['Instances']
+	return instances
+
+def get_ip(instance):
+	
+	if instance.get('PublicIp'):
+		return instance['PublicIp']
+	elif instance.get('ElasticIp'):
+		return instance['ElasticIp']
+	else: 
+		return 'offline'
+
+def print_all_ip():
+	stacks = conn.describe_stacks()['Stacks']
+	for stack in stacks:
+		instances = conn.describe_instances(stack['StackId'])['Instances']
+		for instance in instances:
+			print textwrap.fill(stack['Name'],30), "|",  textwrap.fill(instance['Hostname'],20), get_ip(instance)
+
+def wait_deployment_finished(deploymentId):
+	start_time = time.time()
+	timeout = 7200
+	while True:
+		print "Deploying.", (time.time()-start_time), "s has passed."
+		time.sleep(30)
+		deployments = conn.describe_deployments(None, None, [deploymentId])['Deployments']
+		not_running = 0
+		for deployment in deployments:
+			if deployment['Status'] != 'running':
+				not_running += 1
+		if not_running == len(deployments):
+			break
+		if time.time() - start_time > timeout:
+			raise Exception('deployment timeout.')
+#
+@clize
+def list_all_ip():
+	print_all_ip()
+
+#@kwoargs('stack_name')
+@clize
+def list_ip(stack_name):
+	if not stack_name:
+		print_all_ip()
+	else:
+		stack_id = get_stack(conn,stack_name)['StackId']
+		instances = conn.describe_instances(stack_id)['Instances']
+		for instance in instances:
+			print instance['Hostname'], get_ip(instance)
+#
+@clize
+def ip(host_name):
+	stacks = conn.describe_stacks()['Stacks']
+	for stack in stacks:
+		instances = conn.describe_instances(stack['StackId'])['Instances']
+		for instance in instances:
+			if instance['Hostname'] == host_name:
+				print get_ip(instance)
+				return
+
+#
+@clize
+def update_custom_cookbooks(stack_name, layer=None):
+	stack = get_stack(conn, stack_name)
+	instances = get_instances(conn, stack_name, layer)
+	ids = []
+	command = {
+		"Name": "update_custom_cookbooks"
+	}
+	for instance in instances:
+		ids.append(instance['InstanceId'])
+	deploymentId = conn.create_deployment(stack['StackId'], command, None, ids)['DeploymentId']
+	wait_deployment_finished(deploymentId)
+
+@clize
+def setup(stack_name, layer=None):
+	stack = get_stack(conn, stack_name)
+	instances = get_instances(conn, stack_name, layer)
+	ids = []
+	command = {
+		"Name": "setup"
+	}
+	for instance in instances:
+		ids.append(instance['InstanceId'])
+	deploymentId = conn.create_deployment(stack['StackId'], command, None, ids)['DeploymentId']
+	wait_deployment_finished(deploymentId)
+
+
+#
+@clize
+def deploy(apps, stack_name, layer):
+	stack = get_stack(conn, stack_name)
+	instances = get_instances(conn, stack_name, layer)
+	ids = []
+	command = {
+		"Name": "deploy"
+	}
+	for instance in instances:
+		ids.append(instance['InstanceId'])
+	deploymentId = conn.create_deployment(stack['StackId'], command, apps, ids)['DeploymentId']
+	wait_deployment_finished(deploymentId)
+
+	
+#
+if __name__ == '__main__':
+	run([list_ip, list_all_ip, ip, deploy, update_custom_cookbooks, setup, deploy])
