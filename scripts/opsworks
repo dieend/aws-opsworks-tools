@@ -130,7 +130,7 @@ def setup(stack_name, layer=None):
 def deploy(apps_name, stack_name, layer):
 	stack = get_stack(conn, stack_name)
 	instances = get_instances(conn, stack_name, layer)
-	app = get_app(apps_name)
+	app = get_app(conn, stack_name, apps_name)
 	ids = []
 	command = {
 		"Name": "deploy"
