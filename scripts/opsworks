@@ -21,6 +21,13 @@ def get_layer(conn, stack_name, layer_name):
 		if layer.get('Name') == layer_name or layer.get('Shortname') == layer_name:
 			return layer
 
+def get_app(conn, stack_name, app_name):
+	stack = get_stack(conn, stack_name)
+	apps = conn.describe_apps(stack['StackId'])['Apps']
+	for app in apps:
+		if app.get('Name') == app_name:
+			return app
+
 def get_instances(conn, stack_name, layer_name=None):
 	if layer_name is not None:
 		layer = get_layer(conn, stack_name, layer_name)
@@ -120,16 +127,17 @@ def setup(stack_name, layer=None):
 
 #
 @clize
-def deploy(apps, stack_name, layer):
+def deploy(apps_name, stack_name, layer):
 	stack = get_stack(conn, stack_name)
 	instances = get_instances(conn, stack_name, layer)
+	app = get_app(apps_name)
 	ids = []
 	command = {
 		"Name": "deploy"
 	}
 	for instance in instances:
 		ids.append(instance['InstanceId'])
-	deploymentId = conn.create_deployment(stack['StackId'], command, apps, ids)['DeploymentId']
+	deploymentId = conn.create_deployment(stack['StackId'], command, app['AppId'], ids)['DeploymentId']
 	wait_deployment_finished(deploymentId)
 
 #
@@ -156,6 +164,14 @@ def list_instances(stack_name, layer_name=None):
 		print str(instance.get('Name'))
 
 @clize
+def list_apps(stack_name):
+	stack = get_stack(conn, stack_name)
+	apps = conn.describe_apps(stack['StackId'])['Apps']
+	for app in apps:
+		print app #str(instance.get('Name'))
+
+
+@clize
 def get_unassigned(stack_name):
 	stack = get_stack(conn, stack_name)
 	instances = conn.describe_instances(stack['StackId'])['Instances']
@@ -169,4 +185,4 @@ if __name__ == '__main__':
 	run([list_ip, list_all_ip, ip, deploy, 
 		update_custom_cookbooks, setup, deploy,
 		list_stack, list_layer, list_instances,
-		get_unassigned])
+		get_unassigned, list_apps])
