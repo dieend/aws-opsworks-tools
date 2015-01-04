@@ -139,7 +139,6 @@ def list_stack():
 	for stack in stacks:
 		print str(stack.get('Name'))
 	
-
 #
 @clize
 def list_layer(stack_name):
@@ -148,8 +147,26 @@ def list_layer(stack_name):
 	for layer in layers:
 		print str(layer.get('Name'))
 
+#
+@clize
+def list_instances(stack_name, layer_name=None):
+	stack = get_stack(conn, stack_name)
+	instances = conn.describe_instances(stack['StackId'])['Instances']
+	for instance in instances:
+		print str(instance.get('Name'))
+
+@clize
+def get_unassigned(stack_name):
+	stack = get_stack(conn, stack_name)
+	instances = conn.describe_instances(stack['StackId'])['Instances']
+	for instance in instances:
+		if len(instance['LayerIds'])==0 :
+			print instance.get('InstanceId')
+
 
 
 if __name__ == '__main__':
-	run([list_ip, list_all_ip, ip, deploy, update_custom_cookbooks, setup, deploy,
-		list_stack, list_layer])
+	run([list_ip, list_all_ip, ip, deploy, 
+		update_custom_cookbooks, setup, deploy,
+		list_stack, list_layer, list_instances,
+		get_unassigned])
